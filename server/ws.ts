@@ -18,7 +18,7 @@ import {
 } from "../lib/db";
 
 const port = parseInt(process.env.WS_PORT || "3001", 10);
-let wssInstance: WebSocketServer | null = null;
+const wss = new WebSocketServer({ port });
 
 interface AuthenticatedSocket extends WebSocket {
   isAlive: boolean;
@@ -85,36 +85,15 @@ async function broadcastToConversationMembers(
 }
 
 function broadcastGlobal(event: string, data: any) {
-  if (!wssInstance) return;
   const payload = JSON.stringify({ event, data });
-  wssInstance.clients.forEach((client) => {
+  wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(payload);
     }
   });
 }
 
-export function initWebSocketServer(server?: any): WebSocketServer {
-  if (wssInstance) return wssInstance;
-
-  const wss = server
-    ? new WebSocketServer({ noServer: true })
-    : new WebSocketServer({ port });
-
-  wssInstance = wss;
-
-  if (server) {
-    server.on("upgrade", (request: any, socket: any, head: any) => {
-      const { pathname } = parse(request.url || "");
-      if (pathname === "/ws" || pathname === "/ws/") {
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit("connection", ws, request);
-        });
-      }
-    });
-  }
-
-  wss.on("connection", (ws: WebSocket, request) => {
+wss.on("connection", (ws: WebSocket, request) => {
   const client = ws as AuthenticatedSocket;
   client.isAlive = true;
   client.connectionId = crypto.randomUUID();
@@ -569,24 +548,20 @@ async function setupAuthenticatedSocket(client: AuthenticatedSocket, user: Sessi
   await usersDb.where({ id: user.id }).update({ lastSeenAt: new Date().toISOString() });
 }
 
-  const heartbeatInterval = setInterval(() => {
-    if (!wss) return;
-    wss.clients.forEach((ws) => {
-      const client = ws as AuthenticatedSocket;
-      if (!client.isAlive) {
-        return client.terminate();
-      }
-      client.isAlive = false;
-      client.ping();
-    });
-  }, 30000);
-
-  wss.on("close", () => {
-    clearInterval(heartbeatInterval);
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    const client = ws as AuthenticatedSocket;
+    if (!client.isAlive) {
+      return client.terminate();
+    }
+    client.isAlive = false;
+    client.ping();
   });
+}, 30000);
 
-  return wss;
-}
+wss.on("close", () => {
+  clearInterval(heartbeatInterval);
+});
 
 try {
   redisSub.subscribe("chat:events", (err) => {
@@ -651,7 +626,4 @@ try {
   console.warn("Redis pubsub setup error:", err);
 }
 
-if (process.argv[1]?.includes("ws.ts") || process.env.STANDALONE_WS === "true") {
-  initWebSocketServer();
-  console.log(`> Standalone WebSocket Server listening on ws://localhost:${port}`);
-}
+console.log(`> Standalone WebSocket Server listening on ws://localhost:${port}`);
