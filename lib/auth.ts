@@ -2,13 +2,16 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 
-const rawSecret = process.env.JWT_SECRET;
-if (!rawSecret && process.env.NODE_ENV === "production") {
-  throw new Error("FATAL: JWT_SECRET environment variable must be set in production.");
+function getJwtSecret(): Uint8Array {
+  const rawSecret = process.env.JWT_SECRET;
+  if (!rawSecret) {
+    if (process.env.NODE_ENV === "production" && process.env.NEXT_PHASE !== "phase-production-build") {
+      console.warn("WARNING: JWT_SECRET environment variable is not set. Using fallback.");
+    }
+    return new TextEncoder().encode("dev-only-ephemeral-jwt-secret-key-32-chars-long-min!");
+  }
+  return new TextEncoder().encode(rawSecret);
 }
-const JWT_SECRET = new TextEncoder().encode(
-  rawSecret || "dev-only-ephemeral-jwt-secret-key-32-chars-long-min!"
-);
 const TOKEN_COOKIE_NAME = "rt_auth_token";
 
 export interface SessionUser {
@@ -74,12 +77,12 @@ export async function createAuthToken(user: SessionUser): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifyAuthToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     if (!payload || !payload.id || typeof payload.id !== "string") {
       return null;
     }

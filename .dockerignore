@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.agents
+docs
+tests
+*.log
+.DS_Store
+.env
+.env.local
+.env*.local
+*.tsbuildinfo
+uploads/media/*
+!uploads/media/.gitkeep

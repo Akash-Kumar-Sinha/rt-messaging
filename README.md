@@ -69,6 +69,7 @@ bun prisma db init --yes
 
 ### 4. Run Application
 
+#### Local Development / Production (Bun)
 ```bash
 # Start both Next.js app & WebSocket gateway concurrently
 bun dev
@@ -81,7 +82,35 @@ bun run build
 bun start
 ```
 
+#### Run with Docker Compose (Full Stack)
+```bash
+# Build and spin up App, WebSocket Gateway, PostgreSQL, and Redis
+docker compose up --build -d
+
+# View application logs
+docker compose logs -f app
+```
+
 Open **`http://localhost:3000`** in your browser.
+
+---
+
+## Deployment & Vercel Notes
+
+> [!IMPORTANT]
+> **Vercel & Persistent WebSockets:**  
+> Next.js runs as stateless Serverless Functions on Vercel, which **do not support persistent TCP WebSocket servers** (like `server/ws.ts`).
+
+To deploy this application with Vercel:
+
+1. **Option A: Full Stack Container (Recommended)**
+   - Deploy this project using the included `Dockerfile` and `docker-compose.yml` to **Railway**, **Render**, **Fly.io**, **AWS App Runner / ECS**, or a **VPS (Coolify / Docker)**.
+   - The Next.js web application and WebSocket gateway will run together with native low-latency socket support.
+
+2. **Option B: Hybrid Deployment (Vercel Frontend + Container WebSocket Gateway)**
+   - **Frontend:** Deploy the Next.js application to **Vercel**.
+   - **WebSocket & Storage:** Deploy `Dockerfile` (or `server/ws.ts`), PostgreSQL, and Redis to a container platform (e.g., Railway / Fly.io).
+   - **Vercel Environment Variable:** In your Vercel project settings, set `NEXT_PUBLIC_WS_URL` to your remote WebSocket gateway URL (e.g., `wss://ws.yourdomain.com/ws`).
 
 ---
 
