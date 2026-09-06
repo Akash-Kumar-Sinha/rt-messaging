@@ -1,0 +1,127 @@
+// use prisma-next
+
+model User {
+  id           String   @id
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  avatarUrl    String?
+  lastSeenAt   TimestamptzString @default(now())
+  createdAt    TimestamptzString @default(now())
+  updatedAt    temporal.updatedAtString()
+
+  memberships     ConversationMember[]
+  sentMessages    Message[]            @relation("SentMessages")
+  messageReceipts MessageReceipt[]
+  uploadedMedia   Media[]              @relation("UploadedMedia")
+}
+
+model Conversation {
+  id        String   @id
+  type      String   @default("DIRECT") // "DIRECT" | "GROUP"
+  title     String?
+  directKey String?  @unique // Lexicographical unique key: "userA:userB"
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  members  ConversationMember[]
+  messages Message[]
+  media    Media[]
+}
+
+model ConversationMember {
+  id             String   @id
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  role           String   @default("MEMBER")
+  unreadCount    Int      @default(0)
+  lastReadAt     TimestamptzString @default(now())
+  joinedAt       TimestamptzString @default(now())
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id               String   @id
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId   String
+  sender           User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId         String
+  clientMessageId  String?  @unique // Idempotency key
+  type             String   @default("TEXT") // "TEXT" | "IMAGE" | "GIF" | "STICKER"
+  content          String?
+  metadata         Json?
+  status           String   @default("SENT") // "SENT" | "DELIVERED" | "READ" | "FAILED"
+  moderationStatus String   @default("APPROVED") // "PENDING" | "APPROVED" | "REJECTED"
+  media            Media?   @relation("MessageMedia", fields: [mediaId], references: [id], onDelete: SetNull)
+  mediaId          String?  @unique
+  createdAt        TimestamptzString @default(now())
+  updatedAt        temporal.updatedAtString()
+
+  receipts MessageReceipt[]
+}
+
+model MessageReceipt {
+  id          String   @id
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId   String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  status      String   @default("DELIVERED") // "DELIVERED" | "READ"
+  deliveredAt TimestamptzString @default(now())
+  readAt      TimestamptzString?
+
+  @@unique([messageId, userId])
+}
+
+model Media {
+  id                String   @id
+  uploader          User     @relation("UploadedMedia", fields: [uploaderId], references: [id], onDelete: Cascade)
+  uploaderId        String
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId    String
+  originalFilename  String
+  mimeType          String
+  byteSize          Int
+  width             Int?
+  height            Int?
+  storagePath       String
+  status            String   @default("PENDING_MODERATION") // "UPLOADING" | "PENDING_MODERATION" | "APPROVED" | "REJECTED"
+  moderationDetails Json?
+  createdAt         TimestamptzString @default(now())
+  updatedAt         temporal.updatedAtString()
+
+  message Message? @relation("MessageMedia")
+}
+
+model ModerationLog {
+  id         String   @id
+  targetType String   // "MESSAGE" | "MEDIA"
+  targetId   String?
+  userId     String?
+  flagType   String   // "PROFANITY" | "EXPLICIT_IMAGE" | "RATE_LIMIT"
+  score      Float    @default(0.0)
+  reason     String
+  passed     Boolean
+  createdAt  TimestamptzString @default(now())
+}
+
+model CachedGiphyAsset {
+  id         String   @id
+  giphyId    String
+  type       String   @default("GIF") // "GIF" | "STICKER"
+  title      String?
+  query      String?  // search query or category tag associated with cache
+  url        String   // high quality media URL
+  previewUrl String   // lightweight preview / thumbnail URL
+  width      Int?
+  height     Int?
+  metadata   Json?    // format/provider metadata
+  createdAt  TimestamptzString @default(now())
+  updatedAt  temporal.updatedAtString()
+
+  @@unique([giphyId, type])
+}

@@ -1,0 +1,205 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum MemberRole {
+  MEMBER
+  ADMIN
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  GIF
+  STICKER
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MediaStatus {
+  UPLOADING
+  PENDING_MODERATION
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  avatarUrl    String?
+  bio          String?
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships      ConversationMember[]
+  sentMessages     Message[]            @relation("SentMessages")
+  messageReceipts  MessageReceipt[]
+  uploadedMedia    Media[]              @relation("UploadedMedia")
+
+  @@index([username])
+  @@index([email])
+}
+
+model Conversation {
+  id        String           @id @default(uuid())
+  type      ConversationType @default(DIRECT)
+  title     String?
+  directKey String?          @unique // Lexicographical composite key: "userId1:userId2" for 1-on-1 uniqueness
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  members  ConversationMember[]
+  messages Message[]
+  media    Media[]
+
+  @@index([type])
+  @@index([updatedAt])
+}
+
+model ConversationMember {
+  id             String     @id @default(uuid())
+  conversationId String
+  userId         String
+  role           MemberRole @default(MEMBER)
+  unreadCount    Int        @default(0)
+  lastReadAt     DateTime   @default(now())
+  joinedAt       DateTime   @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId, conversationId])
+  @@index([userId])
+}
+
+model Message {
+  id               String           @id @default(uuid())
+  conversationId   String
+  senderId         String
+  clientMessageId  String?          @unique // Client-generated idempotency key
+  type             MessageType      @default(TEXT)
+  content          String?          @db.Text
+  metadata         Json?            // GIF / Sticker / extra metadata
+  status           MessageStatus    @default(SENT)
+  moderationStatus ModerationStatus @default(APPROVED)
+  mediaId          String?          @unique
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  media        Media?           @relation("MessageMedia", fields: [mediaId], references: [id], onDelete: SetNull)
+  receipts     MessageReceipt[]
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, id])
+  @@index([senderId])
+  @@index([clientMessageId])
+  @@index([moderationStatus])
+}
+
+model MessageReceipt {
+  id          String        @id @default(uuid())
+  messageId   String
+  userId      String
+  status      MessageStatus @default(DELIVERED)
+  deliveredAt DateTime      @default(now())
+  readAt      DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId, userId])
+  @@index([userId, status])
+}
+
+model Media {
+  id                String      @id @default(uuid())
+  uploaderId        String
+  conversationId    String
+  originalFilename  String
+  mimeType          String
+  byteSize          Int
+  width             Int?
+  height            Int?
+  storagePath       String
+  status            MediaStatus @default(PENDING_MODERATION)
+  moderationDetails Json?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  uploader     User          @relation("UploadedMedia", fields: [uploaderId], references: [id], onDelete: Cascade)
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message?      @relation("MessageMedia")
+
+  @@index([uploaderId, status])
+  @@index([conversationId])
+}
+
+model ModerationLog {
+  id         String   @id @default(uuid())
+  targetType String   // "MESSAGE" | "MEDIA"
+  targetId   String?
+  userId     String?
+  flagType   String   // "PROFANITY" | "EXPLICIT_IMAGE" | "RATE_LIMIT"
+  score      Float    @default(0.0)
+  reason     String
+  passed     Boolean
+  createdAt  DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum GiphyAssetType {
+  GIF
+  STICKER
+}
+
+model CachedGiphyAsset {
+  id         String         @id @default(uuid())
+  giphyId    String
+  type       GiphyAssetType @default(GIF)
+  title      String?
+  query      String?        // search query or category tag associated with cache
+  url        String         // high quality media URL
+  previewUrl String         // lightweight preview / thumbnail URL
+  width      Int?
+  height     Int?
+  metadata   Json?          // format/provider metadata
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@unique([giphyId, type])
+  @@index([type, query])
+  @@index([type, createdAt])
+  @@index([giphyId])
+}
