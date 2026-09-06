@@ -7,17 +7,21 @@ A high-performance, secure real-time messaging application built with **Next.js 
 ## Setup Instructions
 
 ### Prerequisites
+
 - **[Bun](https://bun.sh)** (v1.3+ recommended)
 - **PostgreSQL** (v15+)
 - **Redis** (v7+)
 
 ### 1. Clone & Install Dependencies
+
 ```bash
 bun install
 ```
 
 ### 2. Configure Environment Variables
+
 Copy `.env.example` to `.env` and configure your environment:
+
 ```bash
 cp .env.example .env
 ```
@@ -55,13 +59,16 @@ NSFW_MODERATION_TIMEOUT_MS=10000
 ```
 
 ### 3. Initialize Database
+
 Generate the Prisma client and initialize schema tables:
+
 ```bash
 bun prisma contract emit
 bun prisma db init --yes
 ```
 
 ### 4. Run Application
+
 ```bash
 # Start both Next.js app & WebSocket gateway concurrently
 bun dev
@@ -122,10 +129,14 @@ Open **`http://localhost:3000`** in your browser.
 
 ## Key Technical Decisions
 
-| Decision Area | Technical Choice | Rationale |
-| :--- | :--- | :--- |
-| **Runtime & Tooling** | **Bun** | Fast startup, native TypeScript execution, and unified package management and test runner. |
-| **Nudes Image Detection** | **Hugging Face (`@huggingface/transformers`)** | Performs local server-side NSFW/nudes image classification using quantized ONNX models (`Falconsai/nsfw_image_detection` via `onnx-community/nsfw_image_detection-ONNX`). Features configurable confidence thresholds, concurrency limits, timeout guards, and fail-closed safety. |
-| **Multi-Session Sync** | **WebSocket + `BroadcastChannel`** | Combines server-side multi-device broadcasts with browser `BroadcastChannel` to update unread counts and read receipts across tabs instantly without duplicate fetches. |
-| **High-Volume Pagination** | **Cursor-based Indexed Queries** | Uses `(conversationId, createdAt DESC, id DESC)` composite indexing to guarantee sub-millisecond pagination over 10,000+ messages without `OFFSET` performance degradation. |
-| **Rate Limiting Resilience** | **Redis Sliding Window + In-Memory Fallback** | Enforces burst and steady-state thresholds using Redis atomic sorted sets, falling back automatically to an in-memory window during Redis connection loss. |
+| Decision Area                | Technical Choice                               | Rationale                                                                                                                                                                                                                                                                          |
+| :--------------------------- | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Runtime & Tooling**        | **Bun**                                        | Fast startup, native TypeScript execution, and unified package management and test runner.                                                                                                                                                                                         |
+| **Nudes Image Detection**    | **Hugging Face (`@huggingface/transformers`)** | Performs local server-side NSFW/nudes image classification using quantized ONNX models (`Falconsai/nsfw_image_detection` via `onnx-community/nsfw_image_detection-ONNX`). Features configurable confidence thresholds, concurrency limits, timeout guards, and fail-closed safety. |
+| **Multi-Session Sync**       | **WebSocket + `BroadcastChannel`**             | Combines server-side multi-device broadcasts with browser `BroadcastChannel` to update unread counts and read receipts across tabs instantly without duplicate fetches.                                                                                                            |
+| **High-Volume Pagination**   | **Cursor-based Indexed Queries**               | Uses `(conversationId, createdAt DESC, id DESC)` composite indexing to guarantee sub-millisecond pagination over 10,000+ messages without `OFFSET` performance degradation.                                                                                                        |
+| **Rate Limiting Resilience** | **Redis Sliding Window + In-Memory Fallback**  | Enforces burst and steady-state thresholds using Redis atomic sorted sets, falling back automatically to an in-memory window during Redis connection loss.                                                                                                                         |
+
+### Demo Link
+
+- [Demo](https://drive.google.com/file/d/17elqjHg7q0kpxxMpgL7GG1zgm8nPgY5_/view?usp=sharing)
