@@ -83,11 +83,20 @@ export function useWebSocket(user: SessionUser | null, token: string | null) {
     isAuthenticatedRef.current = false;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const defaultWsPort = process.env.NEXT_PUBLIC_WS_PORT || "3001";
     const customWsUrl = process.env.NEXT_PUBLIC_WS_URL;
-    const wsUrl =
-      customWsUrl ||
-      `${protocol}//${window.location.hostname}:${defaultWsPort}/ws`;
+    let wsUrl: string;
+
+    if (customWsUrl) {
+      wsUrl = customWsUrl;
+    } else if (
+      typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ) {
+      const defaultWsPort = process.env.NEXT_PUBLIC_WS_PORT || "3001";
+      wsUrl = `${protocol}//${window.location.hostname}:${defaultWsPort}/ws`;
+    } else {
+      wsUrl = `${protocol}//${window.location.host}/ws`;
+    }
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
